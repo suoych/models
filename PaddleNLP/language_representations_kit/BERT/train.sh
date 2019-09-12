@@ -36,7 +36,7 @@ CONFIG_PATH=data/demo_config/bert_config.json
 VOCAB_PATH=data/demo_config/vocab.txt
 
 # Change your train arguments:
-~/paddle_release_home/python/bin/python -u ./train.py ${is_distributed}\
+python -u ./train.py ${is_distributed}\
         --use_cuda true\
         --weight_sharing true\
         --batch_size ${BATCH_SIZE} \

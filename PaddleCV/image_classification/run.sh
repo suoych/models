@@ -1,7 +1,7 @@
 #Hyperparameters config
 #Example: SE_ResNext50_32x4d
 export CUDA_VISIBLE_DEVICES=1
-~/paddle_release_home/python/bin/python train.py \
+python train.py \
        --model=SE_ResNeXt50_32x4d \
        --batch_size=420 \
        --total_images=1281167 \

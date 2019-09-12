@@ -4,7 +4,7 @@ export FLAGS_eager_delete_tensor_gb=0.0
 export CUDA_VISIBLE_DEVICES=0
 export FLAGS_fraction_of_gpu_memory_to_use=0 
 
-~/paddle_release_home/python/bin/python -u main.py \
+python -u main.py \
   --do_train True \
   --epoch 1 \
   --src_vocab_fpath wmt16_ende_data_bpe_clean/vocab_all.bpe.32000 \
