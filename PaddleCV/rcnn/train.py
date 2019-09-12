@@ -28,7 +28,7 @@ set_paddle_flags({
     'FLAGS_conv_workspace_size_limit': 500,
     'FLAGS_eager_delete_tensor_gb': 0,  # enable gc
     'FLAGS_memory_fraction_of_eager_deletion': 1,
-    'FLAGS_fraction_of_gpu_memory_to_use': 0.98
+    'FLAGS_fraction_of_gpu_memory_to_use': 0.999
 })
 
 import sys
@@ -59,6 +59,7 @@ def get_device_num():
 
 def train():
     learning_rate = cfg.learning_rate
+    print(learning_rate)
     image_shape = [3, cfg.TRAIN.max_size, cfg.TRAIN.max_size]
 
     if cfg.enable_ce:
@@ -95,16 +96,20 @@ def train():
         values=values,
         warmup_iter=cfg.warm_up_iter,
         warmup_factor=cfg.warm_up_factor)
+    print(lr)
     optimizer = fluid.optimizer.Momentum(
         learning_rate=lr,
         regularization=fluid.regularizer.L2Decay(cfg.weight_decay),
         momentum=cfg.momentum)
+    optimizer = fluid.optimizer.RecomputeOptimizer(optimizer) # , debug=True, debug_batchsize=cfg.TRAIN.im_per_batch)
+    optimizer._set_checkpoints(model.checkpoints)
     optimizer.minimize(loss)
     fetch_list = fetch_list + [lr]
 
     for var in fetch_list:
         var.persistable = True
 
+    #fluid.memory_optimize(fluid.default_main_program(), skip_opt_set=set(fetch_list))
     gpu_id = int(os.environ.get('FLAGS_selected_gpus', 0))
     place = fluid.CUDAPlace(gpu_id) if cfg.use_gpu else fluid.CPUPlace()
     exe = fluid.Executor(place)
@@ -124,6 +129,12 @@ def train():
         exec_strategy = fluid.ExecutionStrategy()
         exec_strategy.num_iteration_per_drop_scope = 10
 
+        compiled_prog = fluid.compiler.CompiledProgram(
+            fluid.default_main_program()).with_data_parallel(
+                loss_name=loss.name,
+                build_strategy=build_strategy,
+                exec_strategy=exec_strategy)
+
         if num_trainers > 1 and cfg.use_gpu:
             dist_utils.prepare_for_multi_process(exe, build_strategy,
                                                  fluid.default_main_program())
@@ -137,6 +148,7 @@ def train():
             build_strategy=build_strategy,
             exec_strategy=exec_strategy)
     else:
+        pass
         train_exe = exe
 
     shuffle = True
@@ -186,7 +198,7 @@ def train():
             for iter_id in range(cfg.max_iter):
                 prev_start_time = start_time
                 start_time = time.time()
-                outs = train_exe.run(fetch_list=[v.name for v in fetch_list])
+                outs = exe.run(fetch_list=[v.name for v in fetch_list], use_program_cache = True)
                 stats = {k: np.array(v).mean() for k, v in zip(keys, outs[:-1])}
                 train_stats.update(stats)
                 logs = train_stats.log()
@@ -216,10 +228,11 @@ def train():
         start = start_time
         train_stats = TrainingStats(cfg.log_window, keys)
         for iter_id, data in enumerate(train_reader()):
+	    #print(data)
             prev_start_time = start_time
             start_time = time.time()
-            outs = train_exe.run(fetch_list=[v.name for v in fetch_list],
-                                 feed=feeder.feed(data))
+            outs = exe.run(fetch_list=[v.name for v in fetch_list],
+                                 feed=feeder.feed(data), use_program_cache = True)
             stats = {k: np.array(v).mean() for k, v in zip(keys, outs[:-1])}
             train_stats.update(stats)
             logs = train_stats.log()

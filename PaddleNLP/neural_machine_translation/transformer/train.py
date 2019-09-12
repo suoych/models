@@ -1,17 +1,4 @@
-# Copyright (c) 2019 PaddlePaddle Authors. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
+#encoding=utf8
 import logging
 import os
 import six
@@ -36,7 +23,6 @@ if os.environ.get('FLAGS_eager_delete_tensor_gb', None) is None:
     os.environ['FLAGS_eager_delete_tensor_gb'] = '0'
 # num_trainers is used for multi-process gpu training
 num_trainers = int(os.environ.get('PADDLE_TRAINERS_NUM', 1))
-
 
 def init_from_pretrain_model(args, exe, program):
 
@@ -185,7 +171,7 @@ def do_train(args):
 
             # define the network
 
-            sum_cost, avg_cost, token_num = create_net(
+            sum_cost, avg_cost, token_num ,checkpoints = create_net(
                 is_training=True, model_input=input_field, args=args)
 
             sum_cost.persistable = avg_cost.persistable = token_num.persistable = True
@@ -201,6 +187,10 @@ def do_train(args):
                 beta1=args.beta1,
                 beta2=args.beta2,
                 epsilon=float(args.eps))
+            optimizer = fluid.optimizer.RecomputeOptimizer(optimizer, debug = True, debug_batchsize = args.batch_size/256)
+            print(checkpoints)
+            # exit(0)
+            optimizer._set_checkpoints(checkpoints)
             optimizer.minimize(avg_cost)
 
     # prepare training
@@ -261,7 +251,7 @@ def do_train(args):
             try:
                 outs = exe.run(compiled_train_prog,
                                fetch_list=[sum_cost.name, token_num.name]
-                               if step_idx % args.print_step == 0 else [])
+                               if step_idx % args.print_step == 0 else [], use_program_cache=True)
 
                 if step_idx % args.print_step == 0:
                     sum_cost_val, token_num_val = np.array(outs[0]), np.array(

@@ -215,7 +215,13 @@ def train(args):
                     decay_steps=400,
                     decay_rate=0.9,
                     staircase=True))
+            print(dam.checkpoints)
+            optimizer = fluid.optimizer.RecomputeOptimizer(optimizer) # , debug = True, debug_batchsize = args.batch_size)
+            optimizer._set_checkpoints(dam.checkpoints)
             optimizer.minimize(loss)
+            print("begin memory optimization ...")
+           # fluid.memory_optimize(train_program)
+            print("end memory optimization ...")
 
     test_program = fluid.Program()
     test_startup = fluid.Program()
@@ -286,7 +292,7 @@ def train(args):
     batch_num = len(train_data[six.b('y')]) // args.batch_size
     val_batch_num = len(val_batches["response"])
 
-    print_step = max(1, batch_num // (dev_count * 100))
+    print_step = 1 # max(1, batch_num // (dev_count * 100))
     save_step = max(1, batch_num // (dev_count * 10))
 
     print("begin model training ...")
@@ -295,6 +301,8 @@ def train(args):
     # train on one epoch data by feeding
     def train_with_feed(step):
         ave_cost = 0.0
+        start_time = 0
+        end_time = 0
         for it in six.moves.xrange(batch_num // dev_count):
             feed_list = []
             for dev in six.moves.xrange(dev_count):
@@ -302,14 +310,17 @@ def train(args):
                 batch_data = reader.make_one_batch_input(train_batches, index)
                 feed_dict = dict(zip(dam.get_feed_names(), batch_data))
                 feed_list.append(feed_dict)
-
-            cost = train_exe.run(feed=feed_list, fetch_list=[loss.name])
-
+            
+            start_time = time.time()
+            cost = exe.run(train_program, feed=feed_list, fetch_list=[loss.name], use_program_cache = True)
+            end_time = time.time()
+            
             ave_cost += np.array(cost[0]).mean()
             step = step + 1
             if step % print_step == 0:
                 print("processed: [" + str(step * dev_count * 1.0 / batch_num) +
-                      "] ave loss: [" + str(ave_cost / print_step) + "]")
+                      "] ave loss: [" + str(ave_cost / print_step) + "]" +
+                      " time: " + str(end_time - start_time))
                 ave_cost = 0.0
 
             if (args.save_path is not None) and (step % save_step == 0):
@@ -338,17 +349,22 @@ def train(args):
         train_pyreader.decorate_tensor_provider(data_provider)
 
         ave_cost = 0.0
+        temp_time = time.time()
+        one_step_time = 0
         train_pyreader.start()
         while True:
             try:
-                cost = train_exe.run(fetch_list=[loss.name])
+                cost = exe.run(train_program, fetch_list=[loss.name], use_program_cache=True)
 
                 ave_cost += np.array(cost[0]).mean()
                 step = step + 1
+                one_step_time = time.time() - temp_time
+                temp_time = time.time()
                 if step % print_step == 0:
                     print("processed: [" + str(step * dev_count * 1.0 /
                                                batch_num) + "] ave loss: [" +
-                          str(ave_cost / print_step) + "]")
+                          str(ave_cost / print_step) + "]" + 
+                          " time: " + str(one_step_time))
                     ave_cost = 0.0
 
                 if (args.save_path is not None) and (step % save_step == 0):

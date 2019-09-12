@@ -24,7 +24,7 @@ from paddle.fluid.param_attr import ParamAttr
 
 __all__ = [
     "SE_ResNeXt", "SE_ResNeXt50_32x4d_vd", "SE_ResNeXt101_32x4d_vd",
-    "SENet154_vd"
+    "SE154_vd"
 ]
 
 train_parameters = {
@@ -267,6 +267,6 @@ def SE_ResNeXt101_32x4d_vd():
     return model
 
 
-def SENet154_vd(): 
+def SE154_vd():
     model = SE_ResNeXt(layers=152)
     return model

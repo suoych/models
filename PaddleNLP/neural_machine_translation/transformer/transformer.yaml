@@ -4,7 +4,7 @@ enable_ce: False
 # The frequency to save trained models when training.
 save_step: 10000
 # The frequency to fetch and print output when training.
-print_step: 100
+print_step: 1
 # path of the checkpoint, to resume the previous training
 init_from_checkpoint: ""
 # path of the pretrain model, to better solve the current task

@@ -67,7 +67,7 @@ class BertModel(object):
         self._prepostprocess_dropout = config['hidden_dropout_prob']
         self._attention_dropout = config['attention_probs_dropout_prob']
         self._weight_sharing = weight_sharing
-
+        self.checkpoints = []
         self._word_emb_name = "word_embedding"
         self._pos_emb_name = "pos_embedding"
         self._sent_emb_name = "sent_embedding"
@@ -118,9 +118,9 @@ class BertModel(object):
             x=self_attn_mask, scale=10000.0, bias=-1.0, bias_after_scale=False)
         n_head_self_attn_mask = fluid.layers.stack(
             x=[self_attn_mask] * self._n_head, axis=1)
-        n_head_self_attn_mask.stop_gradient = True
+        #n_head_self_attn_mask.stop_gradient = True
 
-        self._enc_out = encoder(
+        self._enc_out, self.checkpoints = encoder(
             enc_input=emb_out,
             attn_bias=n_head_self_attn_mask,
             n_layer=self._n_layer,
@@ -159,6 +159,7 @@ class BertModel(object):
         """Get the loss & accuracy for pretraining"""
 
         mask_pos = fluid.layers.cast(x=mask_pos, dtype='int32')
+        mask_pos.stop_gradient = True
 
         # extract the first token feature in each sentence
         next_sent_feat = self.get_pooled_output()

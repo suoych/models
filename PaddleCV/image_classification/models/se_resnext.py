@@ -45,6 +45,7 @@ class SE_ResNeXt():
     def __init__(self, layers=50):
         self.params = train_parameters
         self.layers = layers
+	self.checkpoints = []
 
     def net(self, input, class_dim=1000):
         layers = self.layers
@@ -71,6 +72,8 @@ class SE_ResNeXt():
                 pool_padding=1,
                 pool_type='max',
                 use_cudnn=False)
+	    #self.checkpoints.append(conv)
+
         elif layers == 101:
             cardinality = 32
             reduction_ratio = 16
@@ -132,6 +135,7 @@ class SE_ResNeXt():
                     cardinality=cardinality,
                     reduction_ratio=reduction_ratio,
                     name=str(n) + '_' + str(i + 1))
+	    self.checkpoints.append(conv)
 
         pool = fluid.layers.pool2d(
             input=conv,
@@ -141,6 +145,7 @@ class SE_ResNeXt():
             use_cudnn=False)
         drop = fluid.layers.dropout(
             x=pool, dropout_prob=0.5, seed=self.params['dropout_seed'])
+        #self.checkpoints.append(drop)
         stdv = 1.0 / math.sqrt(drop.shape[1] * 1.0)
         out = fluid.layers.fc(
             input=drop,

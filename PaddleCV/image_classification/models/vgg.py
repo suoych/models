@@ -38,6 +38,7 @@ class VGGNet():
     def __init__(self, layers=16):
         self.params = train_parameters
         self.layers = layers
+        self.checkpoints = []
 
     def net(self, input, class_dim=1000):
         layers = self.layers
@@ -66,6 +67,7 @@ class VGGNet():
             param_attr=fluid.param_attr.ParamAttr(name=fc_name[0] + "_weights"),
             bias_attr=fluid.param_attr.ParamAttr(name=fc_name[0] + "_offset"))
         fc1 = fluid.layers.dropout(x=fc1, dropout_prob=0.5)
+	self.checkpoints.append(fc1)
         fc2 = fluid.layers.fc(
             input=fc1,
             size=fc_dim,
@@ -73,12 +75,13 @@ class VGGNet():
             param_attr=fluid.param_attr.ParamAttr(name=fc_name[1] + "_weights"),
             bias_attr=fluid.param_attr.ParamAttr(name=fc_name[1] + "_offset"))
         fc2 = fluid.layers.dropout(x=fc2, dropout_prob=0.5)
+        self.checkpoints.append(fc2)
         out = fluid.layers.fc(
             input=fc2,
             size=class_dim,
             param_attr=fluid.param_attr.ParamAttr(name=fc_name[2] + "_weights"),
             bias_attr=fluid.param_attr.ParamAttr(name=fc_name[2] + "_offset"))
-
+        #self.checkpoints.append(out)
         return out
 
     def conv_block(self, input, num_filter, groups, name=None):
@@ -95,8 +98,11 @@ class VGGNet():
                     name=name + str(i + 1) + "_weights"),
                 bias_attr=fluid.param_attr.ParamAttr(
                     name=name + str(i + 1) + "_offset"))
-        return fluid.layers.pool2d(
+	    #self.checkpoints.append(conv)
+	out = fluid.layers.pool2d(
             input=conv, pool_size=2, pool_type='max', pool_stride=2)
+        self.checkpoints.append(out)
+        return out
 
 
 def VGG11():

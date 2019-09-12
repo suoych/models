@@ -1,5 +1,4 @@
 #!/bin/bash
-
 set -xe
 
 while true ; do
@@ -21,19 +20,23 @@ case "$is_local" in
     *) echo "not support argument -local: ${is_local}" ; exit 1 ;;
 esac
 
+export FLAGS_fraction_of_gpu_memory_to_use=0.999
+export FLAGS_eager_delete_tensor_gb=0
+export CUDA_VISIBLE_DEVICES=2
+
 # pretrain config
 SAVE_STEPS=10000
-BATCH_SIZE=4096
+BATCH_SIZE=39800
 LR_RATE=1e-4
 WEIGHT_DECAY=0.01
-MAX_LEN=512
+MAX_LEN=128
 TRAIN_DATA_DIR=data/train
 VALIDATION_DATA_DIR=data/validation
 CONFIG_PATH=data/demo_config/bert_config.json
 VOCAB_PATH=data/demo_config/vocab.txt
 
 # Change your train arguments:
-python -u ./train.py ${is_distributed}\
+~/paddle_release_home/python/bin/python -u ./train.py ${is_distributed}\
         --use_cuda true\
         --weight_sharing true\
         --batch_size ${BATCH_SIZE} \

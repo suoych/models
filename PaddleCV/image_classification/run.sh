@@ -1,8 +1,9 @@
 #Hyperparameters config
 #Example: SE_ResNext50_32x4d
-python train.py \
+export CUDA_VISIBLE_DEVICES=1
+~/paddle_release_home/python/bin/python train.py \
        --model=SE_ResNeXt50_32x4d \
-       --batch_size=400 \
+       --batch_size=420 \
        --total_images=1281167 \
        --class_dim=1000 \
        --image_shape=3,224,224 \
@@ -760,7 +761,7 @@ python train.py \
 #       --label_smoothing_epsilon=0.1 \
 
 #DarkNet53
- python train.py
+# python train.py
 #       --model=DarkNet53 \
 #       --batch_size=256 \
 #       --total_images=1281167 \

@@ -133,13 +133,13 @@ def parse_args():
     add_arg('dataset',          str,   'coco2017',  "coco2014, coco2017.")
     add_arg('class_num',        int,   81,          "Class number.")
     add_arg('data_dir',         str,   'dataset/coco',        "The data root path.")
-    add_arg('use_pyreader',     bool,   True,           "Use pyreader.")
+    add_arg('use_pyreader',     bool,   False,           "Use pyreader.")
     add_arg('use_profile',         bool,   False,       "Whether use profiler.")
     add_arg('padding_minibatch',bool,   False,
         "If False, only resize image and not pad, image shape is different between"
         " GPUs in one mini-batch. If True, image shape is the same in one mini-batch.")
     #SOLVER
-    add_arg('learning_rate',    float,  0.01,     "Learning rate.")
+    add_arg('learning_rate',    float,  0.0001,     "Learning rate.")
     add_arg('max_iter',         int,    180000,   "Iter number.")
     add_arg('log_window',       int,    20,        "Log smooth window, set 1 for debug, set 20 for train.")
     # RCNN
@@ -150,8 +150,8 @@ def parse_args():
     add_arg('rpn_stride',       float,  [16.,16.],    "Stride of the feature map that RPN is attached.")
     add_arg('rpn_nms_thresh',    float,   0.7,          "NMS threshold used on RPN proposals")
     # TRAIN VAL INFER
-    add_arg('MASK_ON', bool, False, "Option for different models. If False, choose faster_rcnn. If True, choose mask_rcnn")
-    add_arg('im_per_batch',       int,   1,        "Minibatch size.")
+    add_arg('MASK_ON', bool, True, "Option for different models. If False, choose faster_rcnn. If True, choose mask_rcnn")
+    add_arg('im_per_batch',       int,   13,        "Minibatch size.")
     add_arg('max_size',         int,   1333,    "The resized image height.")
     add_arg('scales', int,  [800],    "The resized image height.")
     add_arg('batch_size_per_im',int,    512,    "fast rcnn head batch size")

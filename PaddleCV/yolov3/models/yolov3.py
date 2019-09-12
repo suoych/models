@@ -31,6 +31,7 @@ def yolo_detection_block(input, channel, is_test=True, name=None):
     assert channel % 2 == 0, \
             "channel {} cannot be divided by 2".format(channel)
     conv = input
+    temp = []
     for j in range(2):
         conv = conv_bn_layer(
             conv,
@@ -48,6 +49,7 @@ def yolo_detection_block(input, channel, is_test=True, name=None):
             padding=1,
             is_test=is_test,
             name='{}.{}.1'.format(name, j))
+        temp.append(conv)
     route = conv_bn_layer(
         conv,
         channel,
@@ -64,7 +66,7 @@ def yolo_detection_block(input, channel, is_test=True, name=None):
         padding=1,
         is_test=is_test,
         name='{}.tip'.format(name))
-    return route, tip
+    return route, tip,temp
 
 
 def upsample(input, scale=2, name=None):
@@ -89,6 +91,7 @@ class YOLOv3(object):
         self.outputs = []
         self.losses = []
         self.downsample = 32
+        self.checkpoints = []
 
     def build_input(self):
         self.image_shape = [3, cfg.input_size, cfg.input_size]
@@ -123,14 +126,19 @@ class YOLOv3(object):
         self.scores = []
 
         blocks = add_DarkNet53_conv_body(self.image, not self.is_train)
+
         for i, block in enumerate(blocks):
             if i > 0:
                 block = fluid.layers.concat(input=[route, block], axis=1)
-            route, tip = yolo_detection_block(
+            route, tip, temp = yolo_detection_block(
                 block,
                 channel=512 // (2**i),
                 is_test=(not self.is_train),
                 name="yolo_block.{}".format(i))
+            #self.checkpoints.extend(temp)
+            #self.checkpoints.append(route)
+            #self.checkpoints.append(block)
+            self.checkpoints.append(tip)
 
             # out channel number = mask_num * (5 + class_num)
             num_filters = len(cfg.anchor_masks[i]) * (cfg.class_num + 5)
@@ -148,6 +156,7 @@ class YOLOv3(object):
                     initializer=fluid.initializer.Constant(0.0),
                     regularizer=L2Decay(0.),
                     name="yolo_output.{}.conv.bias".format(i)))
+            #self.checkpoints.append(block_out)
             self.outputs.append(block_out)
 
             if i < len(blocks) - 1:
@@ -159,8 +168,10 @@ class YOLOv3(object):
                     padding=0,
                     is_test=(not self.is_train),
                     name="yolo_transition.{}".format(i))
+                #self.checkpoints.append(route)
                 # upsample
                 route = upsample(route)
+                # self.checkpoints.append(route)
 
         for i, out in enumerate(self.outputs):
             anchor_mask = cfg.anchor_masks[i]

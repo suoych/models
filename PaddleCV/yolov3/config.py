@@ -78,7 +78,7 @@ _C.ignore_thresh = .7
 #
 
 # batch size
-_C.batch_size = 8
+_C.batch_size = 28
 
 # derived learning rate the to get the final learning rate.
 _C.learning_rate = 0.001

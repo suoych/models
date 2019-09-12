@@ -31,7 +31,7 @@ DATA_DIM = 224
 THREAD = 8
 BUF_SIZE = 2048
 
-DATA_DIR = './data/ILSVRC2012'
+DATA_DIR = './data/imagenet_small'
 
 img_mean = np.array([0.485, 0.456, 0.406]).reshape((3, 1, 1))
 img_std = np.array([0.229, 0.224, 0.225]).reshape((3, 1, 1))

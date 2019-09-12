@@ -41,6 +41,7 @@ class ResNet():
     def __init__(self, layers=50):
         self.params = train_parameters
         self.layers = layers
+        self.checkpoints = []
 
     def net(self, input, class_dim=1000):
         layers = self.layers
@@ -76,13 +77,15 @@ class ResNet():
                             conv_name="res"+str(block+2)+"b"+str(i)
                     else:
                         conv_name="res"+str(block+2)+chr(97+i)
-                    conv = self.bottleneck_block(
+                    conv, short = self.bottleneck_block(
                         input=conv,
                         num_filters=num_filters[block],
                         stride=2 if i == 0 and block != 0 else 1, name=conv_name)
+                    self.checkpoints.append(conv)
 
             pool = fluid.layers.pool2d(
                 input=conv, pool_size=7, pool_type='avg', global_pooling=True)
+            self.checkpoints.append(pool)
             stdv = 1.0 / math.sqrt(pool.shape[1] * 1.0)
             out = fluid.layers.fc(input=pool,
                                   size=class_dim,
@@ -92,12 +95,13 @@ class ResNet():
             for block in range(len(depth)):
                 for i in range(depth[block]):
                     conv_name="res"+str(block+2)+chr(97+i)
-                    conv = self.basic_block(
+                    conv, conv0 = self.basic_block(
                         input=conv,
                         num_filters=num_filters[block],
                         stride=2 if i == 0 and block != 0 else 1,
                         is_first=block==i==0,
                         name=conv_name)
+                    self.checkpoints.append(conv0)
 
             pool = fluid.layers.pool2d(
                 input=conv, pool_size=7, pool_type='avg', global_pooling=True)
@@ -162,7 +166,7 @@ class ResNet():
 
         short = self.shortcut(input, num_filters * 4, stride, is_first=False, name=name + "_branch1")
 
-        return fluid.layers.elementwise_add(x=short, y=conv2, act='relu',name=name+".add.output.5")
+        return fluid.layers.elementwise_add(x=short, y=conv2, act='relu',name=name+".add.output.5"), conv0
     
     def basic_block(self, input, num_filters, stride, is_first, name):
         conv0 = self.conv_bn_layer(input=input, num_filters=num_filters, filter_size=3, act='relu', stride=stride,
@@ -170,7 +174,7 @@ class ResNet():
         conv1 = self.conv_bn_layer(input=conv0, num_filters=num_filters, filter_size=3, act=None, 
                                    name=name+"_branch2b")
         short = self.shortcut(input, num_filters, stride, is_first, name=name + "_branch1")
-        return fluid.layers.elementwise_add(x=short, y=conv1, act='relu')
+        return fluid.layers.elementwise_add(x=short, y=conv1, act='relu'), conv0
     
 
 def ResNet18():

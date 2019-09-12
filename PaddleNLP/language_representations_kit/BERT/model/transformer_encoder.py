@@ -290,12 +290,13 @@ def encoder_layer(enc_input,
         hidden_act,
         param_initializer=param_initializer,
         name=name + '_ffn')
+
     return post_process_layer(
         attn_output,
         ffd_output,
         postprocess_cmd,
         prepostprocess_dropout,
-        name=name + '_post_ffn')
+        name=name + '_post_ffn'), ffd_output
 
 
 def encoder(enc_input,
@@ -318,8 +319,9 @@ def encoder(enc_input,
     The encoder is composed of a stack of identical layers returned by calling
     encoder_layer.
     """
+    checkpoints = []
     for i in range(n_layer):
-        enc_output = encoder_layer(
+        enc_output, cp = encoder_layer(
             enc_input,
             attn_bias,
             n_head,
@@ -335,8 +337,9 @@ def encoder(enc_input,
             postprocess_cmd,
             param_initializer=param_initializer,
             name=name + '_layer_' + str(i))
+        checkpoints.append(cp)
         enc_input = enc_output
     enc_output = pre_process_layer(
         enc_output, preprocess_cmd, prepostprocess_dropout, name="post_encoder")
 
-    return enc_output
+    return enc_output, checkpoints

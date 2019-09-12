@@ -22,7 +22,7 @@ import time
 import sys
 import functools
 import math
-
+use_recompute = True
 
 def set_paddle_flags(flags):
     for key, value in flags.items():
@@ -35,7 +35,7 @@ def set_paddle_flags(flags):
 # not take any effect. 
 set_paddle_flags({
     'FLAGS_eager_delete_tensor_gb': 0,  # enable gc 
-    'FLAGS_fraction_of_gpu_memory_to_use': 0.98
+    'FLAGS_fraction_of_gpu_memory_to_use': 0.999
 })
 import argparse
 import functools
@@ -65,6 +65,7 @@ add_arg('num_epochs',       int,   120,                  "number of epochs.")
 add_arg('class_dim',        int,   1000,                 "Class number.")
 add_arg('image_shape',      str,   "3,224,224",          "input image size")
 add_arg('model_save_dir',   str,   "output",             "model save directory")
+add_arg('with_mem_opt',     bool,  False,                 "Whether to use memory optimization or not.")
 add_arg('with_inplace',     bool,  True,                 "Whether to use inplace memory optimization.")
 add_arg('pretrained_model', str,   None,                 "Whether to use pretrained model.")
 add_arg('checkpoint',       str,   None,                 "Whether to resume checkpoint.")
@@ -215,6 +216,7 @@ def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0):
     use_label_smoothing = args.use_label_smoothing
     epsilon = args.label_smoothing_epsilon
 
+    model.params["dropout_seed"] = 100
     if args.enable_ce:
         assert model_name == "SE_ResNeXt50_32x4d"
         model.params["dropout_seed"] = 100
@@ -296,6 +298,7 @@ def build_program(is_train, main_prog, startup_prog, args):
                 image, y_a, y_b, lam = fluid.layers.read_file(py_reader)
                 if args.fp16:
                     image = fluid.layers.cast(image, "float16")
+                    image.stop_gradient = True
                 avg_cost = net_config(image=image, y_a=y_a, y_b=y_b, lam=lam, model=model, args=args, label=0, is_train=True)
                 avg_cost.persistable = True
                 build_program_out = [py_reader, avg_cost]
@@ -303,6 +306,7 @@ def build_program(is_train, main_prog, startup_prog, args):
                 image, label = fluid.layers.read_file(py_reader)
                 if args.fp16:
                     image = fluid.layers.cast(image, "float16")
+                    image.stop_gradient = True
                 avg_cost, acc_top1, acc_top5 = net_config(image, model, args, label=label, is_train=is_train)
                 avg_cost.persistable = True
                 acc_top1.persistable = True
@@ -328,8 +332,17 @@ def build_program(is_train, main_prog, startup_prog, args):
                     master_param_to_train_param(master_params_grads,
                                                 params_grads, main_prog)
                 else:
+                    #optimizer.minimize(avg_cost)
+                    if use_recompute:
+			print("Recompute!!!")
+                        optimizer = fluid.optimizer.RecomputeOptimizer(optimizer)
+                        optimizer._set_checkpoints(model.checkpoints)
+ 			print("checkpoints: ", model.checkpoints)
                     optimizer.minimize(avg_cost)
-                global_lr = optimizer._global_learning_rate()
+	        if use_recompute:
+		    global_lr = optimizer._optimizer._global_learning_rate()
+		else:
+                    global_lr = optimizer._global_learning_rate()
                 global_lr.persistable=True
                 build_program_out.append(global_lr)
 
@@ -346,6 +359,7 @@ def train(args):
     model_name = args.model
     checkpoint = args.checkpoint
     pretrained_model = args.pretrained_model
+    with_memory_optimization = args.with_mem_opt
     model_save_dir = args.model_save_dir
     use_mixup = args.use_mixup
 
@@ -355,7 +369,8 @@ def train(args):
     if args.enable_ce:
         startup_prog.random_seed = 1000
         train_prog.random_seed = 1000
-
+    startup_prog.random_seed = 1000
+    train_prog.random_seed = 1000
     b_out = build_program(
                      is_train=True,
                      main_prog=train_prog,
@@ -385,10 +400,17 @@ def train(args):
     test_py_reader, test_cost, test_acc1, test_acc5 = b_out_test[0],b_out_test[1],b_out_test[2],b_out_test[3]
     test_prog = test_prog.clone(for_test=True)
 
+    if with_memory_optimization:
+        fluid.memory_optimize(train_prog)
+        fluid.memory_optimize(test_prog)
+
     gpu_id = int(os.environ.get('FLAGS_selected_gpus', 0))
     place = fluid.CUDAPlace(gpu_id) if args.use_gpu else fluid.CPUPlace()
     exe = fluid.Executor(place)
     exe.run(startup_prog)
+
+    with open("main_prog.txt", "w") as fout:
+        fout.write(str(train_prog))
 
     if checkpoint is not None:
         fluid.io.load_persistables(exe, checkpoint, main_program=train_prog)
@@ -440,7 +462,8 @@ def train(args):
         test_fetch_list.append(var.name)
 
     # use_ngraph is for CPU only, please refer to README_ngraph.md for details
-    use_ngraph = os.getenv('FLAGS_use_ngraph')
+    #use_ngraph = os.getenv('FLAGS_use_ngraph')
+    use_ngraph = True
     if not use_ngraph:
         build_strategy = fluid.BuildStrategy()
         # memopt may affect GC results
@@ -480,14 +503,14 @@ def train(args):
                 t1 = time.time()
                 if use_mixup:
                     if use_ngraph:
-                        loss, lr = train_exe.run(train_prog, fetch_list=train_fetch_list)
+                        loss, lr = exe.run(train_prog, fetch_list=train_fetch_list, use_program_cache=True)
                     else:
-                        loss, lr = train_exe.run(fetch_list=train_fetch_list)
+                        loss, lr = exe.run(fetch_list=train_fetch_list, use_program_cache=True)
                 else:
                     if use_ngraph:
-                        loss, acc1, acc5, lr = train_exe.run(train_prog, fetch_list=train_fetch_list)
+                        loss, acc1, acc5, lr = exe.run(train_prog, fetch_list=train_fetch_list, use_program_cache=True)
                     else:
-                        loss, acc1, acc5, lr = train_exe.run(fetch_list=train_fetch_list)
+                        loss, acc1, acc5, lr = exe.run(fetch_list=train_fetch_list, use_program_cache=True)
 
                     acc1 = np.mean(np.array(acc1))
                     acc5 = np.mean(np.array(acc5))
@@ -516,6 +539,8 @@ def train(args):
                                       lr, "%2.2f sec" % period))
                     sys.stdout.flush()
                 batch_id += 1
+                #if batch_id > 50:
+                    #exit(0)
         except fluid.core.EOFException:
             train_py_reader.reset()
 

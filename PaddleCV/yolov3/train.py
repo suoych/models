@@ -27,7 +27,7 @@ def set_paddle_flags(flags):
 set_paddle_flags({
     'FLAGS_eager_delete_tensor_gb': 0,  # enable gc
     'FLAGS_memory_fraction_of_eager_deletion': 1,
-    'FLAGS_fraction_of_gpu_memory_to_use': 0.98
+    'FLAGS_fraction_of_gpu_memory_to_use': 0.999
 })
 
 import sys
@@ -94,6 +94,11 @@ def train():
             warmup_factor=cfg.warm_up_factor),
         regularization=fluid.regularizer.L2Decay(cfg.weight_decay),
         momentum=cfg.momentum)
+    optimizer = fluid.optimizer.RecomputeOptimizer(optimizer) # , debug = True, debug_batchsize = cfg.batch_size)
+    optimizer._set_checkpoints(model.checkpoints)
+    print("model.checkpoints are: ")
+    print(model.checkpoints)
+    #exit(0)
     optimizer.minimize(loss)
 
     gpu_id = int(os.environ.get('FLAGS_selected_gpus', 0))
@@ -176,7 +181,7 @@ def train():
             prev_start_time = start_time
             start_time = time.time()
             losses = exe.run(compile_program,
-                             fetch_list=[v.name for v in fetch_list])
+                             fetch_list=[v.name for v in fetch_list],use_program_cache=True)
             smoothed_loss.add_value(np.mean(np.array(losses[0])))
             snapshot_loss += np.mean(np.array(losses[0]))
             snapshot_time += start_time - prev_start_time
@@ -185,6 +190,7 @@ def train():
             print("Iter {:d}, lr {:.6f}, loss {:.6f}, time {:.5f}".format(
                 iter_id, lr[0],
                 smoothed_loss.get_mean_value(), start_time - prev_start_time))
+            print("total used time: ", snapshot_time)
             sys.stdout.flush()
             if (iter_id + 1) % cfg.snapshot_iter == 0:
                 save_model("model_iter{}".format(iter_id))

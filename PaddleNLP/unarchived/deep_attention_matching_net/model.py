@@ -20,6 +20,7 @@ class Net(object):
         self.use_stack_op = True
         self.use_mask_cache = True
         self.use_sparse_embedding = True
+        self.checkpoints = []
 
     def create_py_reader(self, capacity, name):
         # turns ids
@@ -115,6 +116,7 @@ class Net(object):
                 k_mask=self.response_mask,
                 mask_cache=mask_cache)
             Hr_stack.append(Hr)
+            # self.checkpoints.append(Hr)
 
         # context part
         sim_turns = []
@@ -126,6 +128,7 @@ class Net(object):
                 param_attr=fluid.ParamAttr(
                     name=self.word_emb_name,
                     initializer=fluid.initializer.Normal(scale=0.1)))
+            self.checkpoints.append(Hu)
             Hu_stack = [Hu]
 
             for index in six.moves.xrange(self._stack_num):

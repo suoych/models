@@ -1,17 +1,3 @@
-# Copyright (c) 2019 PaddlePaddle Authors. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 from functools import partial
 import numpy as np
 
@@ -23,6 +9,7 @@ from desc import *
 # Set seed for CE or debug
 dropout_seed = None
 
+checkpoints = []
 
 def wrap_layer_with_block(layer, block_idx):
     """
@@ -117,6 +104,7 @@ def multi_head_attention(queries,
         fc_layer = wrap_layer_with_block(
             layers.fc, fluid.default_main_program().current_block(
             ).parent_idx) if cache is not None and static_kv else layers.fc
+        
         k = fc_layer(
             input=keys,
             size=d_key * n_head,
@@ -159,6 +147,10 @@ def multi_head_attention(queries,
         reshaped_v = reshape_layer(
             x=values, shape=[0, 0, n_head, d_value], inplace=True)
         v = transpose_layer(x=reshaped_v, perm=[0, 2, 1, 3])
+        
+        # checkpoints.append(q)
+        # checkpoints.append(k)
+        # checkpoints.append(v)
 
         if cache is not None:  # only for faster inference
             if static_kv:  # For encoder-decoder attention in inference
@@ -217,22 +209,32 @@ def multi_head_attention(queries,
                 dropout_prob=dropout_rate,
                 seed=dropout_seed,
                 is_test=False)
+            # checkpoints.append(weights)
         out = layers.matmul(weights, v)
+        # checkpoints.append(out)
         return out
 
     q, k, v = __compute_qkv(queries, keys, values, n_head, d_key, d_value)
     q, k, v = __split_heads_qkv(q, k, v, n_head, d_key, d_value)
 
+    # checkpoints.append(q)
+    # checkpoints.append(k)
+    # checkpoints.append(v)
+
     ctx_multiheads = scaled_dot_product_attention(q, k, v, attn_bias, d_model,
                                                   dropout_rate)
 
+    # checkpoints.append(ctx_multiheads)
+
     out = __combine_heads(ctx_multiheads)
+    # checkpoints.append(out)
 
     # Project back to the model size.
     proj_out = layers.fc(input=out,
                          size=d_model,
                          bias_attr=False,
                          num_flatten_dims=2)
+    # checkpoints.append(proj_out)
     return proj_out
 
 
@@ -249,7 +251,12 @@ def positionwise_feed_forward(x, d_inner_hid, d_hid, dropout_rate):
     if dropout_rate:
         hidden = layers.dropout(
             hidden, dropout_prob=dropout_rate, seed=dropout_seed, is_test=False)
+        checkpoints.append(hidden)
+        
     out = layers.fc(input=hidden, size=d_hid, num_flatten_dims=2)
+    
+    # checkpoints.append(out)
+
     return out
 
 
@@ -276,6 +283,10 @@ def pre_post_process_layer(prev_out, out, process_cmd, dropout_rate=0.):
                     dropout_prob=dropout_rate,
                     seed=dropout_seed,
                     is_test=False)
+                checkpoints.append(out)
+
+    # checkpoints.append(out)
+
     return out
 
 
@@ -304,14 +315,18 @@ def prepare_encoder_decoder(src_word,
         param_attr=fluid.ParamAttr(
             name=word_emb_param_name,
             initializer=fluid.initializer.Normal(0., src_emb_dim**-0.5)))
+    # checkpoints.append(src_word_emb)
 
     src_word_emb = layers.scale(x=src_word_emb, scale=src_emb_dim**0.5)
+    # checkpoints.append(src_word_emb)
     src_pos_enc = layers.embedding(
         src_pos,
         size=[src_max_len, src_emb_dim],
         param_attr=fluid.ParamAttr(
             name=pos_enc_param_name, trainable=False))
+    # checkpoints.append(src_pos_enc)
     src_pos_enc.stop_gradient = True
+    # checkpoints.append(src_pos_enc)
     enc_input = src_word_emb + src_pos_enc
     return layers.dropout(
         enc_input, dropout_prob=dropout_rate, seed=dropout_seed,
@@ -387,8 +402,10 @@ def encoder(enc_input,
             preprocess_cmd,
             postprocess_cmd, )
         enc_input = enc_output
+        # checkpoints.append(enc_output)
     enc_output = pre_process_layer(enc_output, preprocess_cmd,
                                    prepostprocess_dropout)
+    # checkpoints.append(enc_output)
     return enc_output
 
 
@@ -501,8 +518,10 @@ def decoder(dec_input,
             cache=None if caches is None else caches[i],
             gather_idx=gather_idx)
         dec_input = dec_output
+        # checkpoints.append(dec_input)
     dec_output = pre_process_layer(dec_output, preprocess_cmd,
                                    prepostprocess_dropout)
+    # checkpoints.append(dec_output)
     return dec_output
 
 
@@ -605,6 +624,8 @@ def transformer(src_vocab_size,
         enc_inputs,
         bos_idx=bos_idx)
 
+    # checkpoints.append(enc_output)
+
     predict = wrap_decoder(
         trg_vocab_size,
         max_length,
@@ -622,6 +643,7 @@ def transformer(src_vocab_size,
         weight_sharing,
         dec_inputs,
         enc_output, )
+    # checkpoints.append(predict)
 
     # Padding index do not contribute to the total loss. The weights is used to
     # cancel padding index in calculating the loss.
@@ -635,8 +657,10 @@ def transformer(src_vocab_size,
         logits=predict,
         label=label,
         soft_label=True if label_smooth_eps else False)
+    # checkpoints.append(cost)
     weighted_cost = cost * weights
     sum_cost = layers.reduce_sum(weighted_cost)
+    # checkpoints.append(sum_cost)
     token_num = layers.reduce_sum(weights)
     token_num.stop_gradient = True
     avg_cost = sum_cost / token_num
@@ -677,6 +701,7 @@ def wrap_encoder(src_vocab_size,
         prepostprocess_dropout,
         bos_idx=bos_idx,
         word_emb_param_name=word_emb_param_names[0])
+    checkpoints.append(enc_input)
     enc_output = encoder(
         enc_input,
         src_slf_attn_bias,
@@ -691,6 +716,7 @@ def wrap_encoder(src_vocab_size,
         relu_dropout,
         preprocess_cmd,
         postprocess_cmd, )
+    # checkpoints.append(enc_output)
     return enc_output
 
 
@@ -733,6 +759,7 @@ def wrap_decoder(trg_vocab_size,
         bos_idx=bos_idx,
         word_emb_param_name=word_emb_param_names[0]
         if weight_sharing else word_emb_param_names[1])
+    checkpoints.append(dec_input)
     dec_output = decoder(
         dec_input,
         enc_output,
@@ -754,6 +781,7 @@ def wrap_decoder(trg_vocab_size,
     # Reshape to 2D tensor to use GEMM instead of BatchedGEMM
     dec_output = layers.reshape(
         dec_output, shape=[-1, dec_output.shape[-1]], inplace=True)
+    # checkpoints.append(dec_output)
     if weight_sharing:
         predict = layers.matmul(
             x=dec_output,
@@ -764,9 +792,11 @@ def wrap_decoder(trg_vocab_size,
         predict = layers.fc(input=dec_output,
                             size=trg_vocab_size,
                             bias_attr=False)
+    # checkpoints.append(predict)
     if dec_inputs is None:
         # Return probs for independent decoder program.
         predict = layers.softmax(predict)
+    # checkpoints.append(predict)
     return predict
 
 
@@ -830,6 +860,7 @@ def fast_decode(src_vocab_size,
         weight_sharing,
         enc_inputs,
         bos_idx=bos_idx)
+    # checkpoints.append(enc_output)
     start_tokens, init_scores, parent_idx, trg_src_attn_bias = dec_inputs
 
     def beam_search():
@@ -965,7 +996,7 @@ def create_net(is_training, model_input, args):
             args.label_smooth_eps,
             args.bos_idx,
             model_input=model_input)
-        return sum_cost, avg_cost, token_num
+        return sum_cost, avg_cost, token_num, checkpoints
     else:
         out_ids, out_scores, _ = fast_decode(
             args.src_vocab_size,

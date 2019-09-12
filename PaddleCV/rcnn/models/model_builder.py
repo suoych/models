@@ -33,6 +33,7 @@ class RCNN(object):
         self.mode = mode
         self.use_pyreader = use_pyreader
         self.use_random = use_random
+        self.checkpoints = []
 
     def build_model(self, image_shape):
         self.build_input(image_shape)
@@ -172,6 +173,9 @@ class RCNN(object):
                     loc=0., scale=0.01)),
             bias_attr=ParamAttr(
                 name="conv_rpn_b", learning_rate=2., regularizer=L2Decay(0.)))
+
+        self.checkpoints.append(rpn_conv)
+
         self.anchor, self.var = fluid.layers.anchor_generator(
             input=rpn_conv,
             anchor_sizes=cfg.anchor_sizes,
@@ -195,6 +199,7 @@ class RCNN(object):
                 name="rpn_cls_logits_b",
                 learning_rate=2.,
                 regularizer=L2Decay(0.)))
+        self.checkpoints.append(self.rpn_cls_score)
         # Proposal bbox regression deltas
         self.rpn_bbox_pred = fluid.layers.conv2d(
             rpn_conv,
@@ -211,9 +216,11 @@ class RCNN(object):
                 name="rpn_bbox_pred_b",
                 learning_rate=2.,
                 regularizer=L2Decay(0.)))
+        self.checkpoints.append(self.rpn_bbox_pred)
 
         rpn_cls_score_prob = fluid.layers.sigmoid(
             self.rpn_cls_score, name='rpn_cls_score_prob')
+        self.checkpoints.append(rpn_cls_score_prob)
 
         param_obj = cfg.TRAIN if self.mode == 'train' else cfg.TEST
         pre_nms_top_n = param_obj.rpn_pre_nms_top_n
@@ -333,6 +340,7 @@ class RCNN(object):
         return mask_fcn_logits
 
     def mask_rcnn_heads(self, mask_input):
+	pass
         if self.mode == 'train':
             conv5 = fluid.layers.gather(self.res5_2_sum,
                                         self.roi_has_mask_int32)
@@ -343,6 +351,7 @@ class RCNN(object):
             shape = fluid.layers.reshape(shape, [1, 1])
             ones = fluid.layers.fill_constant([1, 1], value=1, dtype='int32')
             cond = fluid.layers.equal(x=shape, y=ones)
+	    print("IfElse!!!")
             ie = fluid.layers.IfElse(cond)
 
             with ie.true_block():

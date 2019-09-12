@@ -32,7 +32,7 @@ _C.TRAIN.scales = [800]
 _C.TRAIN.max_size = 1333
 
 # images per GPU in minibatch
-_C.TRAIN.im_per_batch = 1
+_C.TRAIN.im_per_batch = 13
 
 # roi minibatch size per image
 _C.TRAIN.batch_size_per_im = 512
@@ -176,7 +176,7 @@ _C.mrcnn_thresh_binarize = 0.5
 #
 
 # derived learning rate the to get the final learning rate.
-_C.learning_rate = 0.01
+_C.learning_rate = 0.0001
 
 # maximum number of iterations, 1x: 180000, 2x:360000
 _C.max_iter = 180000
@@ -205,13 +205,13 @@ _C.momentum = 0.9
 _C.use_gpu = True
 
 # Whether use parallel
-_C.parallel = True
+_C.parallel = False
 
 # Class number
 _C.class_num = 81
 
 # support pyreader
-_C.use_pyreader = True
+_C.use_pyreader = False
 
 # pixel mean values
 _C.pixel_means = [102.9801, 115.9465, 122.7717]
@@ -219,6 +219,7 @@ _C.pixel_means = [102.9801, 115.9465, 122.7717]
 # clip box to prevent overflowing
 _C.bbox_clip = np.log(1000. / 16.)
 
+print(cfg.learning_rate)
 
 def merge_cfg_from_args(args, mode):
     """Merge config keys, values in args into the global config."""

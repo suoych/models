@@ -123,7 +123,7 @@ def parse_args():
     add_arg('use_multiprocess_reader', bool,   True,   "whether use multiprocess reader.")
     add_arg('worker_num',       int,   8,   "worker number for multiprocess reader.")
     #SOLVER
-    add_arg('batch_size',       int,    8,      "Mini-batch size per device.")
+    add_arg('batch_size',       int,    28,      "Mini-batch size per device.")
     add_arg('learning_rate',    float,  0.001,  "Learning rate.")
     add_arg('max_iter',         int,    500200, "Iter number.")
     add_arg('snapshot_iter',    int,    2000,   "Save model every snapshot stride.")

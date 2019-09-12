@@ -34,9 +34,9 @@ def exponential_with_warmup_decay(learning_rate, boundaries, values,
 
     warmup_iter_var = fluid.layers.fill_constant(
         shape=[1], dtype='float32', value=float(warmup_iter), force_cpu=True)
-
     with control_flow.Switch() as switch:
         with switch.case(global_step < warmup_iter_var):
+	    print('Switch Aaaaaaaaaaaaaaaaaaaaaaaaaaaaa!')
             alpha = global_step / warmup_iter_var
             factor = warmup_factor * (1 - alpha) + alpha
             decayed_lr = learning_rate * factor
@@ -51,11 +51,12 @@ def exponential_with_warmup_decay(learning_rate, boundaries, values,
             value_var = fluid.layers.fill_constant(
                 shape=[1], dtype='float32', value=float(values[i]))
             with switch.case(global_step < boundary_val):
+                print('why!!!!!!!!!!!!!!!!!!!!!!!')
                 fluid.layers.assign(value_var, lr)
 
         last_value_var = fluid.layers.fill_constant(
             shape=[1], dtype='float32', value=float(values[len(values) - 1]))
         with switch.default():
+            print('you what????????????????????')
             fluid.layers.assign(last_value_var, lr)
-
     return lr
