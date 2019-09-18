@@ -23,6 +23,7 @@ class VGGNet():
     def __init__(self, layers=16):
         self.params = train_parameters
         self.layers = layers
+        self.checkpoints = []
 
     def net(self, input, class_dim=1000):
         layers = self.layers
@@ -52,6 +53,7 @@ class VGGNet():
             bias_attr=fluid.param_attr.ParamAttr(
                 initializer=fluid.initializer.Constant(value=0.1)))
         fc1 = fluid.layers.dropout(x=fc1, dropout_prob=0.5)
+        self.checkpoints.append(fc1)
         fc2 = fluid.layers.fc(
             input=fc1,
             size=fc_dim,
@@ -61,6 +63,7 @@ class VGGNet():
             bias_attr=fluid.param_attr.ParamAttr(
                 initializer=fluid.initializer.Constant(value=0.1)))
         fc2 = fluid.layers.dropout(x=fc2, dropout_prob=0.5)
+        self.checkpoints.append(fc2)
         out = fluid.layers.fc(
             input=fc2,
             size=class_dim,
@@ -86,8 +89,10 @@ class VGGNet():
                     initializer=fluid.initializer.Normal(scale=0.01)),
                 bias_attr=fluid.param_attr.ParamAttr(
                     initializer=fluid.initializer.Constant(value=0.0)))
-        return fluid.layers.pool2d(
+        out = fluid.layers.pool2d(
             input=conv, pool_size=2, pool_type='max', pool_stride=2)
+        self.checkpoints.append(out)
+        return out
 
 
 def VGG11():

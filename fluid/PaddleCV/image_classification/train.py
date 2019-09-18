@@ -31,7 +31,7 @@ add_arg('pretrained_model', str,   None,                 "Whether to use pretrai
 add_arg('checkpoint',       str,   None,                 "Whether to resume checkpoint.")
 add_arg('lr',               float, 0.1,                  "set learning rate.")
 add_arg('lr_strategy',      str,   "piecewise_decay",    "Set the learning rate decay strategy.")
-add_arg('model',            str,   "SE_ResNeXt50_32x4d", "Set the network to use.")
+add_arg('model',            str,   "VGG16", "Set the network to use.")
 add_arg('enable_ce',        bool,  False,                "If set True, enable continuous evaluation job.")
 add_arg('data_dir',         str,   "./data/ILSVRC2012",  "The ImageNet dataset root dir.")
 # yapf: enable
@@ -107,7 +107,7 @@ def train(args):
     model = models.__dict__[model_name]()
 
     if args.enable_ce:
-        assert model_name == "SE_ResNeXt50_32x4d"
+        # assert model_name == "SE_ResNeXt50_32x4d"
         fluid.default_startup_program().random_seed = 1000
         model.params["dropout_seed"] = 100
         class_dim = 102
@@ -144,6 +144,9 @@ def train(args):
 
     # initialize optimizer
     optimizer = optimizer_setting(params)
+    #print(model.checkpoints)
+    optimizer = fluid.optimizer.RecomputeOptimizer(optimizer)
+    optimizer._set_checkpoints(model.checkpoints)
     opts = optimizer.minimize(avg_cost)
 
     if with_memory_optimization:

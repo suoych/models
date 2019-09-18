@@ -24,6 +24,7 @@ class ResNet():
     def __init__(self, layers=50):
         self.params = train_parameters
         self.layers = layers
+        self.checkpoints = []
 
     def net(self, input, class_dim=1000):
         layers = self.layers
@@ -54,9 +55,11 @@ class ResNet():
                     input=conv,
                     num_filters=num_filters[block],
                     stride=2 if i == 0 and block != 0 else 1)
+                self.checkpoints.append(conv)
 
         pool = fluid.layers.pool2d(
             input=conv, pool_size=7, pool_type='avg', global_pooling=True)
+        self.checkpoints.append(pool)
         stdv = 1.0 / math.sqrt(pool.shape[1] * 1.0)
         out = fluid.layers.fc(input=pool,
                               size=class_dim,

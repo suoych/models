@@ -28,6 +28,7 @@ class SE_ResNeXt():
     def __init__(self, layers=50):
         self.params = train_parameters
         self.layers = layers
+        self.checkpoints = []
 
     def net(self, input, class_dim=1000):
         layers = self.layers
@@ -102,6 +103,7 @@ class SE_ResNeXt():
                     stride=2 if i == 0 and block != 0 else 1,
                     cardinality=cardinality,
                     reduction_ratio=reduction_ratio)
+            self.checkpoints.append(conv)
 
         pool = fluid.layers.pool2d(
             input=conv, pool_size=7, pool_type='avg', global_pooling=True)
